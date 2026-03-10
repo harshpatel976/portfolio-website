@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>harsh@portfolio:~$</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Fira+Code:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════
+   CSS VARIABLES & RESET
+══════════════════════════════════════════════ */
+:root {
+  --bg:         #0a0a0a;
+  --bg2:        #111111;
+  --bg3:        #161616;
+  --border:     #2a2a2a;
+  --green:      #00ff88;
+  --green-dim:  #00cc6a;
+  --green-dark: #003d1a;
+  --cyan:       #00d4ff;
+  --yellow:     #ffd700;
+  --orange:     #ff8c42;
+  --red:        #ff4757;
+  --white:      #e8e8e8;
+  --gray:       #888;
+  --gray-dim:   #444;
+  --purple:     #c792ea;
+  --blue:       #82aaff;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--white);
+  font-family: 'JetBrains Mono', monospace;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* CRT scanlines */
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent, transparent 2px,
+    rgba(0,255,136,0.013) 2px,
+    rgba(0,255,136,0.013) 4px
+  );
+  pointer-events:none;
+  z-index:99999;
+}
+
+/* CRT flicker */
+@keyframes flicker {
+  0%,97%,100%{opacity:1;}
+  98%{opacity:0.88;}
+  99%{opacity:0.96;}
+}
+body { animation: flicker 9s infinite; }
+
+/* ══════════════════════════════════════════════
+   BOOT SCREEN  (full viewport overlay)
+══════════════════════════════════════════════ */
+#boot-screen {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 9998;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 0;
+  overflow: hidden;
+  transition: opacity 0.8s ease;
+}
+#boot-screen.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* BIOS / firmware header */
+.boot-bios {
+  background: #000;
+  padding: 18px 28px 14px;
+  border-bottom: 1px solid #1a1a1a;
+}
+.bios-line {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #aaa;
+}
+.bios-line b  { color: #fff; }
+.bios-line.hi { color: var(--cyan); }
+
+/* Progress / memory bar */
+.bios-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.bios-bar-bg {
+  flex:1; height:8px;
+  background:#111;
+  border:1px solid #333;
+  border-radius:2px;
+  overflow:hidden;
+}
+.bios-bar-fill {
+  height:100%;
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  width:0;
+  transition: width 1.4s cubic-bezier(0.4,0,0.2,1);
+}
+.bios-bar-label { color:var(--cyan); font-size:11px; white-space:nowrap; }
+
+/* Kernel log area */
+.boot-log {
+  flex:1;
+  padding: 16px 28px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.boot-log::-webkit-scrollbar { width:4px; }
+.boot-log::-webkit-scrollbar-thumb { background:#222; }
+
+/* Individual log line */
+.klog {
+  font-size: 12px;
+  line-height: 1.75;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  white-space: pre;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.klog.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.klog .ts   { color: var(--gray-dim); min-width: 80px; font-size:11px; }
+.klog .badge-ok   { color:#000; background:var(--green); padding:0 6px; border-radius:2px; font-size:10px; font-weight:700; flex-shrink:0; }
+.klog .badge-info { color:#000; background:var(--cyan);  padding:0 6px; border-radius:2px; font-size:10px; font-weight:700; flex-shrink:0; }
+.klog .badge-warn { color:#000; background:var(--yellow);padding:0 6px; border-radius:2px; font-size:10px; font-weight:700; flex-shrink:0; }
+.klog .badge-fail { color:#fff; background:var(--red);   padding:0 6px; border-radius:2px; font-size:10px; font-weight:700; flex-shrink:0; }
+.klog .msg  { color: var(--white); }
+.klog .msg.dim   { color: var(--gray); }
+.klog .msg.green { color: var(--green); }
+.klog .msg.cyan  { color: var(--cyan); }
+.klog .msg.yellow{ color: var(--yellow); }
+.klog .msg.red   { color: var(--red); }
+
+/* Boot footer / progress */
+.boot-footer {
+  padding: 12px 28px 16px;
+  border-top: 1px solid #1a1a1a;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.boot-progress-bg {
+  flex:1; height:4px;
+  background:#1a1a1a;
+  border-radius:2px;
+  overflow:hidden;
+}
+.boot-progress-fill {
+  height:100%;
+  background: linear-gradient(90deg, var(--green-dark), var(--green));
+  box-shadow: 0 0 8px rgba(0,255,136,0.5);
+  width:0%;
+  transition: width 0.3s ease;
+}
+.boot-pct { color:var(--green); font-size:11px; min-width:36px; text-align:right; }
+.boot-status-msg { color:var(--gray); font-size:11px; flex:1; }
+
+/* "Press any key" prompt */
+.press-any {
+  text-align:center;
+  padding: 10px;
+  color: var(--green);
+  font-size:13px;
+  animation: blink-text 1.1s step-end infinite;
+  display:none;
+}
+@keyframes blink-text { 0%,100%{opacity:1;} 50%{opacity:0;} }
+
+/* ══════════════════════════════════════════════
+   MAIN PORTFOLIO  (hidden until boot done)
+══════════════════════════════════════════════ */
+#portfolio {
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  pointer-events: none;
+}
+#portfolio.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* Terminal window */
+.terminal-window {
+  max-width: 1020px;
+  margin: 24px auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 60px rgba(0,255,136,0.07), 0 0 120px rgba(0,255,136,0.03);
+}
+
+/* Title bar */
+.titlebar {
+  background:#1a1a1a;
+  border-bottom:1px solid var(--border);
+  padding:10px 16px;
+  display:flex; align-items:center; gap:8px;
+  user-select:none;
+}
+.dot { width:12px; height:12px; border-radius:50%; }
+.dot.red    { background:#ff5f57; }
+.dot.yellow { background:#febc2e; }
+.dot.green  { background:#28c840; }
+.titlebar-title { margin:0 auto; font-size:12px; color:var(--gray); letter-spacing:.05em; }
+
+/* Terminal body */
+.terminal-body {
+  background: var(--bg);
+  padding: 20px 24px 28px;
+  min-height: 620px;
+}
+
+/* Nav tabs */
+.nav-tabs {
+  display:flex; flex-wrap:wrap; gap:5px;
+  margin-bottom:24px;
+  border-bottom:1px solid var(--border);
+  padding-bottom:13px;
+}
+.nav-tab {
+  background:none;
+  border:1px solid var(--border);
+  color:var(--gray);
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px; padding:5px 14px;
+  cursor:pointer; border-radius:4px;
+  transition:border-color .18s,color .18s,background .18s;
+  letter-spacing:.05em;
+}
+.nav-tab:hover  { border-color:var(--green); color:var(--green); }
+.nav-tab.active { background:var(--green-dark); border-color:var(--green); color:var(--green); }
+.nav-tab .cmd-prefix { color:var(--gray-dim); }
+
+/* Sections */
+.section { display:none; }
+.section.active { display:block; animation:fadeIn .22s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(5px);} to{opacity:1;transform:translateY(0);} }
+
+/* Prompt line */
+.prompt-line { display:flex; align-items:baseline; flex-wrap:wrap; margin-bottom:18px; }
+.prompt-user   { color:var(--green);  font-weight:600; }
+.prompt-at     { color:var(--gray); }
+.prompt-host   { color:var(--cyan);   font-weight:600; }
+.prompt-colon  { color:var(--gray); }
+.prompt-path   { color:var(--blue); }
+.prompt-dollar { color:var(--green);  margin:0 8px; }
+.prompt-cmd    { color:var(--white); }
+
+.output { margin-bottom:20px; }
+
+.sec-header { margin-bottom:18px; padding-bottom:8px; border-bottom:1px dashed var(--border); }
+.sec-header .sec-title { color:var(--green); font-size:15px; font-weight:600; }
+.sec-header .sec-sub   { color:var(--gray);  font-size:11px; margin-top:3px; }
+
+/* Cursor */
+.cursor {
+  display:inline-block; width:8px; height:14px;
+  background:var(--green);
+  animation:blink 1s step-end infinite;
+  vertical-align:bottom; margin-left:2px;
+}
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
+
+/* ── HOME ── */
+.ascii-name {
+  color:var(--green);
+  font-size:clamp(6px,1.35vw,12px);
+  line-height:1.2; white-space:pre;
+  margin-bottom:22px;
+  text-shadow:0 0 22px rgba(0,255,136,0.45);
+  font-family:'Fira Code',monospace;
+}
+.tagline     { color:var(--cyan);  font-size:14px; margin-bottom:6px; }
+.sub-tagline { color:var(--gray);  font-size:12px; margin-bottom:22px; }
+
+.info-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:12px; margin-bottom:22px;
+}
+.info-card {
+  border:1px solid var(--border); background:var(--bg2);
+  padding:14px; border-radius:4px; transition:border-color .2s;
+}
+.info-card:hover { border-color:var(--green-dim); }
+.info-card-label { color:var(--gray); font-size:10px; text-transform:uppercase; letter-spacing:.1em; margin-bottom:6px; }
+.info-card-val   { color:var(--white); font-size:13px; }
+.info-card-val span { color:var(--green); }
+
+.hint      { color:var(--gray-dim); font-size:11px; margin-top:16px; line-height:1.9; }
+.hint span { color:var(--green); }
+
+/* ── ABOUT ── */
+.about-text { font-size:13px; line-height:1.95; color:var(--white); margin-bottom:16px; }
+.comment       { color:var(--gray); font-size:12px; font-style:italic; }
+.comment.green { color:#4aaa80; }
+
+/* ── SKILLS ── */
+.skill-group       { margin-bottom:20px; }
+.skill-group-title { color:var(--purple); font-size:11px; text-transform:uppercase; letter-spacing:.15em; margin-bottom:11px; }
+.skill-row  { display:flex; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap; }
+.skill-name { color:var(--cyan); font-size:12px; min-width:175px; }
+.skill-bar-bg { flex:1; height:6px; background:var(--border); border-radius:3px; min-width:100px; overflow:hidden; }
+.skill-bar-fill {
+  height:100%; border-radius:3px;
+  background:linear-gradient(90deg,var(--green),var(--cyan));
+  box-shadow:0 0 8px rgba(0,255,136,0.4);
+  width:0; transition:width 1.1s cubic-bezier(0.23,1,0.32,1);
+}
+.skill-pct { color:var(--gray); font-size:11px; min-width:36px; text-align:right; }
+.skill-tag {
+  display:inline-block; background:var(--bg2);
+  border:1px solid var(--border); color:var(--white);
+  font-size:11px; padding:3px 10px; border-radius:3px; margin:3px;
+  transition:border-color .15s,color .15s; cursor:default;
+}
+.skill-tag:hover { border-color:var(--green); color:var(--green); }
+
+/* ── EXPERIENCE ── */
+.exp-entry { border-left:2px solid var(--green-dark); padding-left:18px; margin-bottom:24px; position:relative; }
+.exp-entry::before { content:'▶'; position:absolute; left:-10px; top:1px; color:var(--green); font-size:11px; }
+.exp-title   { color:var(--yellow); font-size:13px; font-weight:600; }
+.exp-company { color:var(--cyan);   font-size:12px; }
+.exp-date    { color:var(--gray);   font-size:11px; margin-bottom:9px; }
+.exp-bullet  { color:var(--gray); font-size:12px; line-height:1.75; display:block; margin-bottom:2px; }
+.exp-bullet::before { content:'$ '; color:var(--green); }
+.roles-box { border:1px solid var(--border); background:var(--bg2); padding:14px 16px; border-radius:4px; margin-top:4px; }
+.role-row  { margin-bottom:12px; }
+.role-title{ color:var(--cyan);  font-size:12px; margin-bottom:3px; }
+.role-date { color:var(--gray);  font-size:11px; }
+.role-desc { color:var(--white); font-size:12px; line-height:1.7; margin-top:3px; }
+
+/* ── PROJECTS ── */
+.project-card {
+  border:1px solid var(--border); background:var(--bg2);
+  padding:16px; border-radius:4px; margin-bottom:14px;
+  transition:border-color .2s,box-shadow .2s;
+}
+.project-card:hover { border-color:var(--green); box-shadow:0 0 20px rgba(0,255,136,0.07); }
+.proj-header { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:9px; }
+.proj-name { color:var(--green); font-size:14px; font-weight:600; }
+.proj-year { color:var(--gray);  font-size:11px; }
+.proj-desc { color:var(--white); font-size:12px; line-height:1.75; margin-bottom:10px; }
+.proj-stack { display:flex; flex-wrap:wrap; gap:6px; }
+.stack-tag { background:var(--bg3); border:1px solid #333; color:var(--orange); font-size:10px; padding:2px 8px; border-radius:2px; letter-spacing:.05em; }
+
+/* ── EDUCATION ── */
+.edu-table { width:100%; border-collapse:collapse; font-size:12px; }
+.edu-table th { color:var(--green); text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:.1em; }
+.edu-table td { padding:10px 12px; border-bottom:1px solid #1c1c1c; }
+.edu-table tr:hover td { background:var(--bg2); }
+.edu-table .year { color:var(--yellow); }
+.edu-table .cgpa { color:var(--green);  font-weight:600; }
+.coursework-box { margin-top:20px; border:1px solid var(--border); background:var(--bg2); padding:14px 16px; border-radius:4px; }
+.coursework-title { color:var(--purple); font-size:11px; text-transform:uppercase; letter-spacing:.1em; margin-bottom:10px; }
+
+/* ── CONTACT ── */
+.contact-row { display:flex; align-items:center; gap:16px; margin-bottom:12px; padding:12px 16px; border:1px solid var(--border); border-radius:4px; background:var(--bg2); transition:border-color .2s; }
+.contact-row:hover { border-color:var(--green); }
+.contact-icon  { color:var(--green); font-size:14px; min-width:20px; text-align:center; }
+.contact-label { color:var(--gray);  font-size:11px; min-width:64px; }
+.contact-val   { color:var(--cyan);  font-size:13px; }
+.contact-val a { color:inherit; text-decoration:none; }
+.contact-val a:hover { color:var(--green); }
+.contact-note { font-size:12px; color:var(--gray); padding:12px 14px; border:1px dashed var(--border); border-radius:4px; line-height:1.7; margin-top:4px; }
+
+/* ── CMD INPUT ── */
+.input-row { margin-top:30px; display:flex; align-items:center; border-top:1px solid var(--border); padding-top:16px; }
+.input-prompt { color:var(--green); font-size:13px; white-space:nowrap; margin-right:8px; user-select:none; }
+.input-field { background:none; border:none; outline:none; color:var(--white); font-family:'JetBrains Mono',monospace; font-size:13px; flex:1; caret-color:var(--green); }
+.cmd-output { margin-top:8px; }
+.cmd-output .ok   { color:var(--green);  }
+.cmd-output .err  { color:var(--red);    }
+.cmd-output .info { color:var(--cyan);   }
+.cmd-output .warn { color:var(--yellow); }
+.cmd-output > div { font-size:12px; line-height:1.85; margin-bottom:8px; white-space:pre-wrap; }
+
+/* ── RESPONSIVE ── */
+@media(max-width:600px){
+  .terminal-window{margin:0;border-radius:0;}
+  .terminal-body{padding:14px 14px 20px;}
+  .ascii-name{font-size:5px;}
+  .skill-name{min-width:130px;}
+  .boot-bios,.boot-log,.boot-footer{padding-left:14px;padding-right:14px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     BOOT SCREEN
+══════════════════════════════════════════════ -->
+<div id="boot-screen">
+
+  <!-- BIOS header -->
+  <div class="boot-bios">
+    <div class="bios-line hi">Portfolio BIOS v2.6.1 &nbsp;&nbsp; Copyright (C) 2025 Harsh Patel Systems</div>
+    <div class="bios-line">CPU: <b>Harsh Patel</b> @ 3.6GHz &nbsp;&nbsp; Cores: 4 (Problem Solving / Frontend / Backend / EEE)</div>
+    <div class="bios-line">RAM: <b>8192MB</b> DDR5 &nbsp;&nbsp; Storage: <b>Projects NVMe 512GB</b></div>
+    <div class="bios-line" style="margin-top:6px;">Memory Test: &nbsp;
+      <span id="memval" style="color:var(--green);font-weight:600;">0</span> MB OK
+    </div>
+    <div class="bios-bar-row">
+      <div class="bios-bar-bg"><div class="bios-bar-fill" id="biosFill"></div></div>
+      <span class="bios-bar-label" id="biosLabel">Initializing...</span>
+    </div>
+  </div>
+
+  <!-- Kernel log -->
+  <div class="boot-log" id="bootLog"></div>
+
+  <!-- Footer progress -->
+  <div class="boot-footer">
+    <span class="boot-status-msg" id="bootStatusMsg">Starting kernel...</span>
+    <div class="boot-progress-bg">
+      <div class="boot-progress-fill" id="bootProgress"></div>
+    </div>
+    <span class="boot-pct" id="bootPct">0%</span>
+  </div>
+
+  <div class="press-any" id="pressAny">[ Press any key or click to enter portfolio ]</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PORTFOLIO
+══════════════════════════════════════════════ -->
+<div id="portfolio">
+<div class="terminal-window">
+
+  <div class="titlebar">
+    <div class="dot red"></div>
+    <div class="dot yellow"></div>
+    <div class="dot green"></div>
+    <div class="titlebar-title">harsh@portfolio:~$ &mdash; bash &mdash; 120&times;40</div>
+  </div>
+
+  <div class="terminal-body">
+
+    <!-- Nav tabs -->
+    <div class="nav-tabs">
+      <button class="nav-tab active"  onclick="switchTab('home',       this)"><span class="cmd-prefix">./</span>home</button>
+      <button class="nav-tab"         onclick="switchTab('about',      this)"><span class="cmd-prefix">./</span>about</button>
+      <button class="nav-tab"         onclick="switchTab('skills',     this)"><span class="cmd-prefix">./</span>skills</button>
+      <button class="nav-tab"         onclick="switchTab('experience', this)"><span class="cmd-prefix">./</span>experience</button>
+      <button class="nav-tab"         onclick="switchTab('projects',   this)"><span class="cmd-prefix">./</span>projects</button>
+      <button class="nav-tab"         onclick="switchTab('education',  this)"><span class="cmd-prefix">./</span>education</button>
+      <button class="nav-tab"         onclick="switchTab('contact',    this)"><span class="cmd-prefix">./</span>contact</button>
+    </div>
+
+    <!-- HOME -->
+    <div id="home" class="section active">
+      <div class="prompt-line">
+        <span class="prompt-user">harsh</span><span class="prompt-at">@</span><span class="prompt-host">portfolio</span><span class="prompt-colon">:</span><span class="prompt-path">~</span><span class="prompt-dollar">$</span>
+        <span class="prompt-cmd">./start.sh</span>
+      </div>
+      <div class="output">
+        <div class="ascii-name">
+ ██╗  ██╗ █████╗ ██████╗ ███████╗██╗  ██╗    ██████╗  █████╗ ████████╗███████╗██╗     
+ ██║  ██║██╔══██╗██╔══██╗██╔════╝██║  ██║    ██╔══██╗██╔══██╗╚══██╔══╝██╔════╝██║     
+ ███████║███████║██████╔╝███████╗███████║    ██████╔╝███████║   ██║   █████╗  ██║     
+ ██╔══██║██╔══██║██╔══██╗╚════██║██╔══██║    ██╔═══╝ ██╔══██║   ██║   ██╔══╝  ██║     
+ ██║  ██║██║  ██║██║  ██║███████║██║  ██║    ██║     ██║  ██║   ██║   ███████╗███████╗
+ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝    ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝</div>
+        <div class="tagline">// Full Stack Developer &amp; Electrical &amp; Electronics Engineer</div>
+        <div class="sub-tagline">The National Institute Of Engineering (NIE) &nbsp;&middot;&nbsp; Mysuru, Karnataka</div>
+        <div class="info-grid">
+          <div class="info-card">
+            <div class="info-card-label">&#9889; Domain</div>
+            <div class="info-card-val"><span>Software Engineering</span> + <span>EEE</span></div>
+          </div>
+          <div class="info-card">
+            <div class="info-card-label">&#127891; Degree</div>
+            <div class="info-card-val">B.E. <span>Electrical &amp; Electronics</span> &middot; SGPA <span>8.0/10</span></div>
+          </div>
+          <div class="info-card">
+            <div class="info-card-label">&#128296; Current Stack</div>
+            <div class="info-card-val"><span>React</span> &middot; <span>Django</span> &middot; <span>Node.js</span> &middot; <span>MongoDB</span></div>
+          </div>
+          <div class="info-card">
+            <div class="info-card-label">&#128205; Status</div>
+            <div class="info-card-val"><span style="color:var(--green)">&#9679;</span> Open to Opportunities</div>
+          </div>
+        </div>
+        <div class="hint">
+          &#8627; Navigate with tabs &nbsp;|&nbsp; or type below: &nbsp;
+          <span>help</span> &nbsp;<span>ls</span> &nbsp;<span>neofetch</span> &nbsp;<span>cat resume</span> &nbsp;<span>cd skills</span> &nbsp;<span>date</span> &nbsp;<span>clear</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABOUT -->
+    <div id="about" class="section">
+      <div class="prompt-line">
+        <span class="prompt-user">harsh</span><span class="prompt-at">@</span><span class="prompt-host">portfolio</span><span class="prompt-colon">:</span><span class="prompt-path">~/about</span><span class="prompt-dollar">$</span>
+        <span class="prompt-cmd">cat about.txt</span>
+      </div>
+      <div class="output">
+        <div class="sec-header">
+          <div class="sec-title">about.txt</div>
+          <div class="sec-sub">— personal introduction</div>
+        </div>
+        <p class="comment green">/*</p>
+        <p class="comment green">&nbsp;* Hi there &mdash; I'm Harsh Patel.</p>
+        <p class="comment green">&nbsp;*/</p><br>
+        <div class="about-text">I'm a <span style="color:var(--cyan)">3rd-year B.E. student</span> at <span style="color:var(--yellow)">The National Institute Of Engineering, Mysuru</span>, pursuing <span style="color:var(--orange)">Electrical &amp; Electronics Engineering</span>. While my core degree dives deep into circuits, power systems, and electronics, I found myself equally passionate about the world of <span style="color:var(--green)">software engineering</span>.</div>
+        <div class="about-text">I bridge both worlds by building <span style="color:var(--cyan)">full-stack web applications</span>, <span style="color:var(--cyan)">ML-powered platforms</span>, and production-ready systems from scratch. Currently interning as a Full Stack Developer at <span style="color:var(--yellow)">SkillSoc</span>, working with Django and React on industry-level applications.</div>
+        <div class="about-text">I've freelanced for two companies &mdash; <span style="color:var(--yellow)">EpitomeCircuit</span> and <span style="color:var(--yellow)">Teloquence</span> &mdash; building their complete digital presence. I also serve as <span style="color:var(--purple)">Technical Lead at IUCEE Club</span> and am a core member of the <span style="color:var(--purple)">NIE Robotics Club</span>, where hardware and software interests converge.</div>
+        <div class="about-text">I enjoy solving real-world problems &mdash; designing recommendation algorithms, architecting REST APIs, analysing control systems, or leading developer teams.</div>
+        <div class="about-text" style="color:var(--gray-dim)"><span style="color:var(--green)">// </span>Fun fact: I can debug a React component and read a circuit schematic with equal enthusiasm.</div>
+      </div>
+    </div>
+
+    <!-- SKILLS -->
+    <div id="skills" class="section">
+      <div class="prompt-line">
+        <span class="prompt-user">harsh</span><span class="prompt-at">@</span><span class="prompt-host">portfolio</span><span class="prompt-colon">:</span><span class="prompt-path">~/skills</span><span class="prompt-dollar">$</span>
+        <span class="prompt-cmd">ls -la skills/ --sort=proficiency</span>
+      </div>
+      <div class="output">
+        <div class="sec-header">
+          <div class="sec-title">skills/</div>
+          <div class="sec-sub">— tech proficiency levels</div>
+        </div>
+        <div class="skill-group">
+          <div class="skill-group-title">// Languages</div>
+          <div class="skill-row"><span class="skill-name">HTML / CSS</span>       <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="92"></div></div><span class="skill-pct">92%</span></div>
+          <div class="skill-row"><span class="skill-name">JavaScript</span>       <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="88"></div></div><span class="skill-pct">88%</span></div>
+          <div class="skill-row"><span class="skill-name">C++</span>              <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="80"></div></div><span class="skill-pct">80%</span></div>
+          <div class="skill-row"><span class="skill-name">Python</span>           <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="76"></div></div><span class="skill-pct">76%</span></div>
+          <div class="skill-row"><span class="skill-name">Java</span>             <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="70"></div></div><span class="skill-pct">70%</span></div>
+        </div>
+        <div class="skill-group">
+          <div class="skill-group-title">// Frontend</div>
+          <div class="skill-row"><span class="skill-name">React.js</span>      <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="87"></div></div><span class="skill-pct">87%</span></div>
+          <div class="skill-row"><span class="skill-name">Tailwind CSS</span>  <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="84"></div></div><span class="skill-pct">84%</span></div>
+          <div class="skill-row"><span class="skill-name">Bootstrap</span>     <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="78"></div></div><span class="skill-pct">78%</span></div>
+        </div>
+        <div class="skill-group">
+          <div class="skill-group-title">// Backend</div>
+          <div class="skill-row"><span class="skill-name">RESTful APIs</span>       <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="86"></div></div><span class="skill-pct">86%</span></div>
+          <div class="skill-row"><span class="skill-name">Node.js + Express</span>  <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="85"></div></div><span class="skill-pct">85%</span></div>
+          <div class="skill-row"><span class="skill-name">Django</span>             <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="79"></div></div><span class="skill-pct">79%</span></div>
+          <div class="skill-row"><span class="skill-name">FastAPI</span>            <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="68"></div></div><span class="skill-pct">68%</span></div>
+        </div>
+        <div class="skill-group">
+          <div class="skill-group-title">// Database &amp; DevOps</div>
+          <div class="skill-row"><span class="skill-name">Git / GitHub</span>  <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="89"></div></div><span class="skill-pct">89%</span></div>
+          <div class="skill-row"><span class="skill-name">MongoDB</span>       <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="83"></div></div><span class="skill-pct">83%</span></div>
+          <div class="skill-row"><span class="skill-name">Docker</span>        <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="65"></div></div><span class="skill-pct">65%</span></div>
+        </div>
+        <div class="skill-group">
+          <div class="skill-group-title">// Machine Learning</div>
+          <div class="skill-row"><span class="skill-name">scikit-learn</span>            <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="70"></div></div><span class="skill-pct">70%</span></div>
+          <div class="skill-row"><span class="skill-name">NLP / Collab Filtering</span>  <div class="skill-bar-bg"><div class="skill-bar-fill" data-w="65"></div></div><span class="skill-pct">65%</span></div>
+        </div>
+        <div class="skill-group">
+          <div class="skill-group-title">// CS Fundamentals</div>
+          <div style="margin-top:6px">
+            <span class="skill-tag">DSA</span><span class="skill-tag">OOPs</span><span class="skill-tag">DBMS</span>
+            <span class="skill-tag">Operating Systems</span><span class="skill-tag">Problem Solving</span>
+            <span class="skill-tag">System Design</span><span class="skill-tag">Postman</span><span class="skill-tag">VS Code</span>
+          </div>
+        </div>
+        <div class="skill-group">
+          <div class="skill-group-title">// Electrical Engineering</div>
+          <div style="margin-top:6px">
+            <span class="skill-tag">Circuit Analysis</span><span class="skill-tag">Power Systems</span>
+            <span class="skill-tag">Digital Electronics</span><span class="skill-tag">Control Systems</span>
+            <span class="skill-tag">Microprocessors</span><span class="skill-tag">Robotics</span>
+            <span class="skill-tag">Embedded Systems</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPERIENCE -->
+    <div id="experience" class="section">
+      <div class="prompt-line">
+        <span class="prompt-user">harsh</span><span class="prompt-at">@</span><span class="prompt-host">portfolio</span><span class="prompt-colon">:</span><span class="prompt-path">~/experience</span><span class="prompt-dollar">$</span>
+        <span class="prompt-cmd">git log --oneline --graph --all</span>
+      </div>
+      <div class="output">
+        <div class="sec-header">
+          <div class="sec-title">work_history.log</div>
+          <div class="sec-sub">— professional experience &amp; leadership</div>
+        </div>
+        <div class="exp-entry">
+          <div class="exp-title">Full Stack Developer Intern</div>
+          <div class="exp-company">@ SkillSoc</div>
+          <div class="exp-date">Oct 2025 &ndash; Present &nbsp;&middot;&nbsp; <span style="color:var(--green)">&#9679; Active</span></div>
+          <span class="exp-bullet">Learning and building industry-level web applications with Django backend architectures.</span>
+          <span class="exp-bullet">Enhanced frontend skills using React and modern JS libraries in production workflows.</span>
+          <span class="exp-bullet">Gained practical exposure to production-ready application design, structure and deployment.</span>
+        </div>
+        <div class="exp-entry">
+          <div class="exp-title">Freelance Full Stack Developer</div>
+          <div class="exp-company">@ EpitomeCircuit</div>
+          <div class="exp-date">Jun 2024</div>
+          <span class="exp-bullet">Designed and developed complete company website from scratch using React.js, Node.js, and MongoDB.</span>
+          <span class="exp-bullet">Built dynamic responsive UI with backend integration for smooth data handling and scalability.</span>
+          <span class="exp-bullet">Improved the organisation's online presence through a professional digital platform.</span>
+        </div>
+        <div class="exp-entry">
+          <div class="exp-title">Freelance Full Stack Developer</div>
+          <div class="exp-company">@ Teloquence</div>
+          <div class="exp-date">2024</div>
+          <span class="exp-bullet">Developed a full-stack web application focusing on modern UI/UX and efficient backend architecture.</span>
+          <span class="exp-bullet">Worked on frontend and backend modules to deliver an industry-ready solution.</span>
+          <span class="exp-bullet">Collaborated with stakeholders to implement features aligned with business requirements.</span>
+        </div>
+        <div class="roles-box">
+          <div style="color:var(--purple);font-size:11px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;">// Leadership &amp; Responsibilities</div>
+          <div class="role-row">
+            <div class="role-title">Technical Lead &mdash; IUCEE Club <span class="role-date">(2024 &ndash; Present)</span></div>
+            <div class="role-desc">Guided members in project-based learning. Led technical planning, collaboration, and execution of club initiatives.</div>
+          </div>
+          <div class="role-row">
+            <div class="role-title">Core Member &mdash; NIE Robotics Club <span class="role-date">(2024 &ndash; Present)</span></div>
+            <div class="role-desc">Active participant in robotics projects and practical engineering innovation activities.</div>
+          </div>
+          <div class="role-row" style="margin-bottom:0">
+            <div class="role-title">Organising Committee &mdash; SIH 2024 Finals <span class="role-date">(2024)</span></div>
+            <div class="role-desc">Coordinated the Smart India Hackathon 2024 Finals. Assisted in event management and smooth execution of technical sessions.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROJECTS -->
+    <div id="projects" class="section">
+      <div class="prompt-line">
+        <span class="prompt-user">harsh</span><span class="prompt-at">@</span><span class="prompt-host">portfolio</span><span class="prompt-colon">:</span><span class="prompt-path">~/projects</span><span class="prompt-dollar">$</span>
+        <span class="prompt-cmd">ls -la projects/ --sort=date</span>
+      </div>
+      <div class="output">
+        <div class="sec-header">
+          <div class="sec-title">projects/</div>
+          <div class="sec-sub">— 4 items found</div>
+        </div>
+        <div class="project-card">
+          <div class="proj-header">
+            <span class="proj-name">&#128230; Course Recommendation System</span>
+            <span class="proj-year">2025 &middot; Full Stack + ML</span>
+          </div>
+          <div class="proj-desc">Personalised course recommendation platform suggesting learning content via NLP-based ranking and collaborative filtering. Features smart onboarding, feedback loop, and dynamic search to continuously improve accuracy.</div>
+          <div class="proj-stack">
+            <span class="stack-tag">React.js</span><span class="stack-tag">Node.js</span><span class="stack-tag">Express.js</span>
+            <span class="stack-tag">MongoDB</span><span class="stack-tag">Python</span><span class="stack-tag">FastAPI</span>
+            <span class="stack-tag">NLP</span><span class="stack-tag">scikit-learn</span>
+          </div>
+        </div>
+        <div class="project-card">
+          <div class="proj-header">
+            <span class="proj-name">&#128715; E-Commerce Website</span>
+            <span class="proj-year">2025 &middot; Full Stack</span>
+          </div>
+          <div class="proj-desc">Complete e-commerce application with product listing, authentication, cart, and order workflow. Django backend integrated with React frontend. Clean architecture focused on real-world deployment readiness.</div>
+          <div class="proj-stack">
+            <span class="stack-tag">Django</span><span class="stack-tag">React.js</span>
+            <span class="stack-tag">REST APIs</span><span class="stack-tag">PostgreSQL</span><span class="stack-tag">Tailwind CSS</span>
+          </div>
+        </div>
+        <div class="project-card">
+          <div class="proj-header">
+            <span class="proj-name">&#128640; Orbital &mdash; Personalised Learning Recommender</span>
+            <span class="proj-year">May 2025 &middot; Competition</span>
+          </div>
+          <div class="proj-desc">Competition-grade app recommending personalised content (courses, videos, articles) with collaborative filtering, NLP ranking, real-time web search via SerpAPI, and a smart feedback loop. Built end-to-end from UI to ML engine.</div>
+          <div class="proj-stack">
+            <span class="stack-tag">React.js</span><span class="stack-tag">Node.js</span><span class="stack-tag">Express.js</span>
+            <span class="stack-tag">MongoDB</span><span class="stack-tag">Python</span><span class="stack-tag">FastAPI</span>
+            <span class="stack-tag">scikit-learn</span><span class="stack-tag">SerpAPI</span>
+          </div>
+        </div>
+        <div class="project-card">
+          <div class="proj-header">
+            <span class="proj-name">&#9851; E-Waste Reduction Platform</span>
+            <span class="proj-year">Jan 2024</span>
+          </div>
+          <div class="proj-desc">Web platform connecting users with certified e-waste recyclers to promote safe disposal and sustainability. Implements listing, scheduling, and recycler integration with intuitive UI and full backend functionality.</div>
+          <div class="proj-stack">
+            <span class="stack-tag">Node.js</span><span class="stack-tag">MongoDB</span>
+            <span class="stack-tag">HTML</span><span class="stack-tag">CSS</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EDUCATION -->
+    <div id="education" class="section">
+      <div class="prompt-line">
+        <span class="prompt-user">harsh</span><span class="prompt-at">@</span><span class="prompt-host">portfolio</span><span class="prompt-colon">:</span><span class="prompt-path">~/education</span><span class="prompt-dollar">$</span>
+        <span class="prompt-cmd">cat education.csv | column -t</span>
+      </div>
+      <div class="output">
+        <div class="sec-header">
+          <div class="sec-title">education.csv</div>
+          <div class="sec-sub">— academic records</div>
+        </div>
+        <table class="edu-table">
+          <thead>
+            <tr><th>Year</th><th>Degree / Exam</th><th>Institution</th><th>Score</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="year">2023 &ndash; Present</td>
+              <td>B.E. Electrical &amp; Electronics Engineering</td>
+              <td>The National Institute Of Engineering (NIE)</td>
+              <td class="cgpa">SGPA 8.0/10</td>
+            </tr>
+            <tr>
+              <td class="year">2021</td>
+              <td>Class XII &mdash; Higher Secondary</td>
+              <td>Higher Secondary School</td>
+              <td class="cgpa">80%</td>
+            </tr>
+            <tr>
+              <td class="year">2019</td>
+              <td>Class X &mdash; Secondary Education</td>
+              <td>School Education Board</td>
+              <td class="cgpa">82%</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="coursework-box">
+          <div class="coursework-title">// Relevant Coursework</div>
+          <div>
+            <span class="skill-tag">Data Structures &amp; Algorithms</span>
+            <span class="skill-tag">Database Management Systems</span>
+            <span class="skill-tag">Operating Systems</span>
+            <span class="skill-tag">Object-Oriented Programming</span>
+            <span class="skill-tag">Power Systems</span>
+            <span class="skill-tag">Circuit Theory</span>
+            <span class="skill-tag">Control Systems</span>
+            <span class="skill-tag">Microprocessors</span>
+            <span class="skill-tag">Digital Electronics</span>
+            <span class="skill-tag">Signal Processing</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTACT -->
+    <div id="contact" class="section">
+      <div class="prompt-line">
+        <span class="prompt-user">harsh</span><span class="prompt-at">@</span><span class="prompt-host">portfolio</span><span class="prompt-colon">:</span><span class="prompt-path">~/contact</span><span class="prompt-dollar">$</span>
+        <span class="prompt-cmd">cat contact.json</span>
+      </div>
+      <div class="output">
+        <div class="sec-header">
+          <div class="sec-title">contact.json</div>
+          <div class="sec-sub">— reach out anytime</div>
+        </div>
+        <div class="contact-row">
+          <div class="contact-icon">&#128231;</div><div class="contact-label">email</div>
+          <div class="contact-val"><a href="mailto:harshpatel97762@gmail.com">harshpatel97762@gmail.com</a></div>
+        </div>
+        <div class="contact-row">
+          <div class="contact-icon">&#128241;</div><div class="contact-label">phone</div>
+          <div class="contact-val"><a href="tel:+916265854817">+91 6265854817</a></div>
+        </div>
+        <div class="contact-row">
+          <div class="contact-icon">&#128025;</div><div class="contact-label">github</div>
+          <div class="contact-val"><a href="https://github.com/harshpatel976" target="_blank">github.com/harshpatel976</a></div>
+        </div>
+        <div class="contact-row">
+          <div class="contact-icon">&#127963;</div><div class="contact-label">college</div>
+          <div class="contact-val">NIE, Mysuru, Karnataka, India</div>
+        </div>
+        <div class="contact-note">
+          <span style="color:var(--green)">// </span>Open to internships, full-time roles, and freelance projects in Full Stack Development or related domains.<br>
+          <span style="color:var(--green)">// </span>Don't hesitate to reach out &mdash; usually respond within 24 hours. &#128640;
+        </div>
+      </div>
+    </div>
+
+    <!-- CMD INPUT BAR -->
+    <div class="input-row">
+      <span class="input-prompt">harsh@portfolio:~$&nbsp;</span>
+      <input class="input-field" id="cmdInput" type="text" placeholder="type a command... (try: help)" autocomplete="off" spellcheck="false">
+      <div class="cursor"></div>
+    </div>
+    <div id="cmdOutput" class="cmd-output"></div>
+
+  </div>
+</div>
+</div><!-- /portfolio -->
+
+<!-- ══════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════ -->
+<script>
+/* ─────────────────────────────────────────────
+   WEB AUDIO — mechanical click engine
+───────────────────────────────────────────── */
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let actx = null;
+
+function getCtx() {
+  if (!actx) actx = new AudioCtx();
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+
+function noiseBurst(ctx, freq, q, g, dur, t) {
+  const n   = Math.ceil(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+  const d   = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/n, 1.3);
+  const src  = ctx.createBufferSource(); src.buffer = buf;
+  const filt = ctx.createBiquadFilter(); filt.type='bandpass'; filt.frequency.value=freq; filt.Q.value=q;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(g, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+  src.start(t); src.stop(t+dur+0.01);
+}
+
+function thud(ctx, f0, f1, g, dur, t) {
+  const osc  = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(f0, t);
+  osc.frequency.exponentialRampToValueAtTime(f1, t+dur);
+  gain.gain.setValueAtTime(g, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t+dur+0.01);
+}
+
+function playClick(type) {
+  try {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    switch(type) {
+      case 'key':
+        noiseBurst(ctx, 3400, 0.8, 0.20, 0.038, now);
+        thud(ctx, 180, 65, 0.10, 0.032, now);
+        break;
+      case 'backspace':
+        noiseBurst(ctx, 2600, 0.9, 0.15, 0.032, now);
+        thud(ctx, 140, 55, 0.08, 0.028, now);
+        break;
+      case 'space':
+        noiseBurst(ctx, 1200, 1.5, 0.22, 0.050, now);
+        thud(ctx, 95, 40, 0.15, 0.044, now);
+        break;
+      case 'enter':
+        noiseBurst(ctx, 2900, 1.0, 0.26, 0.048, now);
+        thud(ctx, 155, 58, 0.18, 0.042, now);
+        noiseBurst(ctx, 2600, 0.8, 0.15, 0.036, now+0.025);
+        thud(ctx, 120, 48, 0.10, 0.030, now+0.025);
+        break;
+      case 'tab':
+        noiseBurst(ctx, 1600, 1.3, 0.34, 0.058, now);
+        thud(ctx, 110, 44, 0.22, 0.050, now);
+        break;
+      case 'boot':
+        // short soft beep for each boot log line
+        noiseBurst(ctx, 2200, 1.2, 0.10, 0.025, now);
+        thud(ctx, 200, 90, 0.07, 0.020, now);
+        break;
+      case 'boot-ok':
+        // brighter tick for [ OK ] lines
+        noiseBurst(ctx, 4000, 0.6, 0.14, 0.022, now);
+        thud(ctx, 260, 110, 0.09, 0.018, now);
+        break;
+      case 'boot-done':
+        // satisfying success chime
+        [0, 0.08, 0.17].forEach((delay, i) => {
+          const freqs = [440, 550, 660];
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.value = freqs[i];
+          g.gain.setValueAtTime(0.18, now+delay);
+          g.gain.exponentialRampToValueAtTime(0.0001, now+delay+0.25);
+          o.connect(g); g.connect(ctx.destination);
+          o.start(now+delay); o.stop(now+delay+0.28);
+        });
+        break;
+    }
+  } catch(e) {}
+}
+
+/* ─────────────────────────────────────────────
+   BOOT SEQUENCE
+───────────────────────────────────────────── */
+const bootLog   = document.getElementById('bootLog');
+const bootProg  = document.getElementById('bootProgress');
+const bootPct   = document.getElementById('bootPct');
+const bootMsg   = document.getElementById('bootStatusMsg');
+const biosFill  = document.getElementById('biosFill');
+const biosLabel = document.getElementById('biosLabel');
+const memVal    = document.getElementById('memval');
+const pressAny  = document.getElementById('pressAny');
+
+// All kernel log lines — [delay_ms, badge, message, sound]
+const BOOT_LINES = [
+  [0,    'info', 'Linux portfolio-kernel 6.6.0-harsh #1 SMP PREEMPT_DYNAMIC', 'boot'],
+  [120,  'info', 'Command line: BOOT_IMAGE=/boot/vmlinuz-6.6.0 root=UUID=harsh-portfolio ro quiet splash', 'boot'],
+  [220,  null,   'BIOS-provided physical RAM map:', null],
+  [310,  null,   '  BIOS-e820: [mem 0x0000000000000000-0x000000000009dfff] usable', null],
+  [390,  null,   '  BIOS-e820: [mem 0x0000000000100000-0x00000001ffffffff] usable', null],
+  [470,  'ok',   'Loaded kernel modules: core filesystem drivers', 'boot-ok'],
+  [560,  'ok',   'Loaded kernel modules: networking stack', 'boot-ok'],
+  [640,  'ok',   'Loaded kernel modules: USB HID — mechanical keyboard driver', 'boot-ok'],
+  [730,  null,   'clocksource: tsc-early: mask=0xffffffffffffffff max_cycles=0x3b0a', null],
+  [810,  'ok',   'ACPI: IRQ0 used by override — CPU performance governor active', 'boot-ok'],
+  [900,  'ok',   'PCI: Using configuration type 1 for base access', 'boot-ok'],
+  [990,  null,   'Unpacking initramfs...', null],
+  [1090, 'ok',   'Unpacking initramfs: done', 'boot-ok'],
+  [1180, 'ok',   'Started Journal Service', 'boot-ok'],
+  [1270, 'ok',   'Reached target Local Encrypted Volumes', 'boot-ok'],
+  [1370, 'ok',   'Mounted /sys/fs/cgroup on cgroupfs', 'boot-ok'],
+  [1460, 'ok',   'Started udev Kernel Device Manager', 'boot-ok'],
+  [1550, null,   'udevd[421]: starting version 3.2.14', null],
+  [1640, 'ok',   'Listening on udev Control Socket', 'boot-ok'],
+  [1740, 'ok',   'Reached target Host and Network Name Lookups', 'boot-ok'],
+  [1840, 'ok',   'Mounting projects filesystem at /home/harsh/projects...', 'boot-ok'],
+  [1960, 'ok',   'Mounting experience filesystem at /home/harsh/experience...', 'boot-ok'],
+  [2070, 'ok',   'Mounting skills database at /home/harsh/skills...', 'boot-ok'],
+  [2180, 'ok',   'Started Network Time Synchronization (portfolio.local)', 'boot-ok'],
+  [2290, null,   'systemd-resolved[512]: Positive Trust Anchors: harsh-ca.pem', null],
+  [2400, 'ok',   'Started System Logging Service — syslog active', 'boot-ok'],
+  [2500, 'ok',   'Started Bluetooth Manager Service', 'boot-ok'],
+  [2600, 'ok',   'Started Avahi mDNS/DNS-SD Stack', 'boot-ok'],
+  [2700, null,   'Node.js runtime: v22.3.0 — ready', null],
+  [2800, null,   'Python runtime: v3.12.2 — ready', null],
+  [2900, null,   'Django: 5.0.4 — wsgi module loaded', null],
+  [3000, null,   'React: 18.3.1 — renderer initialized', null],
+  [3100, 'ok',   'Started portfolio.service — Harsh Patel Portfolio v1.0.0', 'boot-ok'],
+  [3200, 'ok',   'Started SSH service on port 22', 'boot-ok'],
+  [3300, 'ok',   'Reached target Multi-User System', 'boot-ok'],
+  [3400, 'ok',   'Reached target Graphical Interface', 'boot-ok'],
+  [3520, 'ok',   'Started GNOME Display Manager — portfolio UI ready', 'boot-ok'],
+  [3660, null,   '', null],
+  [3700, 'ok',   '████████████████████  ALL SYSTEMS OPERATIONAL  ████████████████████', 'boot-done'],
+  [3900, null,   '', null],
+  [3950, null,   'Welcome to portfolio-os  [ Harsh Patel / NIE Mysuru ]', null],
+  [4050, null,   'Login: harsh   Password: ************', null],
+  [4200, null,   'Last login: Today  from local', null],
+];
+
+let bootReady = false;
+
+function setProgress(pct, msg) {
+  bootProg.style.width = pct + '%';
+  bootPct.textContent  = pct + '%';
+  if (msg) bootMsg.textContent = msg;
+}
+
+function addLogLine(badge, msg, glow) {
+  const el = document.createElement('div');
+  el.className = 'klog';
+
+  const ts = document.createElement('span');
+  ts.className = 'ts';
+  const t = (performance.now()/1000).toFixed(6);
+  ts.textContent = '[' + t + ']';
+
+  el.appendChild(ts);
+
+  if (badge) {
+    const b = document.createElement('span');
+    b.className = 'badge-' + badge;
+    b.textContent = badge === 'ok' ? ' OK ' : badge.toUpperCase();
+    el.appendChild(b);
+  }
+
+  const m = document.createElement('span');
+  m.className = 'msg' + (glow ? ' green' : (badge === 'info' ? ' cyan' : ''));
+  m.textContent = ' ' + msg;
+  el.appendChild(m);
+
+  bootLog.appendChild(el);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { el.classList.add('show'); });
+  });
+  bootLog.scrollTop = bootLog.scrollHeight;
+}
+
+// Memory counter animation
+function animateMem(target, dur) {
+  const start = performance.now();
+  const tick = () => {
+    const p = Math.min((performance.now()-start)/dur, 1);
+    memVal.textContent = Math.floor(p * target).toLocaleString();
+    if (p < 1) requestAnimationFrame(tick);
+    else memVal.textContent = target.toLocaleString();
+  };
+  requestAnimationFrame(tick);
+}
+
+// BIOS bar
+setTimeout(() => {
+  biosFill.style.width = '100%';
+  biosLabel.textContent = 'Memory OK';
+}, 400);
+animateMem(8192, 1200);
+
+// Schedule each boot line
+BOOT_LINES.forEach(([delay, badge, msg, sound], i) => {
+  setTimeout(() => {
+    if (msg !== '') {
+      const isOk   = badge === 'ok';
+      const isLast = (msg.includes('ALL SYSTEMS') );
+      addLogLine(badge, msg, isLast);
+      if (sound) playClick(sound);
+    } else {
+      addLogLine(null, '', false);
+    }
+
+    // Update footer progress bar
+    const pct = Math.round(((i+1) / BOOT_LINES.length) * 100);
+    const msgs = [
+      'Loading kernel...','Initialising modules...','Mounting filesystems...',
+      'Starting services...','Loading portfolio assets...','Almost there...',
+      'All systems go!'
+    ];
+    setProgress(pct, msgs[Math.floor(pct/15)] || 'Starting up...');
+
+    // Show "press any key" after last line
+    if (i === BOOT_LINES.length - 1) {
+      setTimeout(() => {
+        pressAny.style.display = 'block';
+        bootReady = true;
+      }, 600);
+    }
+  }, delay + 600); // +600 to let BIOS render first
+});
+
+function enterPortfolio() {
+  if (!bootReady) return;
+  const bs = document.getElementById('boot-screen');
+  const pf = document.getElementById('portfolio');
+  bs.classList.add('fade-out');
+  setTimeout(() => {
+    bs.style.display = 'none';
+    pf.classList.add('visible');
+    animateBars();
+  }, 850);
+}
+
+// Enter on any key or click
+window.addEventListener('keydown', () => enterPortfolio());
+document.getElementById('boot-screen').addEventListener('click', () => enterPortfolio());
+
+/* ─────────────────────────────────────────────
+   TAB SWITCHING
+───────────────────────────────────────────── */
+function switchTab(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  animateBars();
+  playClick('tab');
+}
+
+function animateBars() {
+  document.querySelectorAll('.skill-bar-fill').forEach(bar => {
+    const w = bar.getAttribute('data-w');
+    bar.style.width = '0';
+    setTimeout(() => { bar.style.width = w + '%'; }, 80);
+  });
+}
+
+/* ─────────────────────────────────────────────
+   COMMAND SYSTEM
+───────────────────────────────────────────── */
+const inputEl  = document.getElementById('cmdInput');
+const outputEl = document.getElementById('cmdOutput');
+
+const tabMap = {
+  home:0, about:1, skills:2, experience:3,
+  projects:4, education:5, contact:6
+};
+
+const commands = {
+  help: () =>
+`<span class="info">┌─ Available Commands ──────────────────────────────────┐</span>
+<span class="ok">  help          </span>  show this message
+<span class="ok">  ls            </span>  list all sections
+<span class="ok">  whoami        </span>  go to home screen
+<span class="ok">  cd &lt;section&gt;  </span>  navigate  (e.g. <span class="warn">cd skills</span>)
+<span class="ok">  cat resume    </span>  print resume summary
+<span class="ok">  neofetch      </span>  system info card
+<span class="ok">  date          </span>  current date &amp; time
+<span class="ok">  echo &lt;text&gt;   </span>  echo text to terminal
+<span class="ok">  clear         </span>  clear terminal output
+<span class="info">└───────────────────────────────────────────────────────┘</span>`,
+
+  ls: () =>
+`<span class="ok">drwxr-xr-x</span>  harsh  staff   home/
+<span class="ok">drwxr-xr-x</span>  harsh  staff   about/
+<span class="ok">drwxr-xr-x</span>  harsh  staff   skills/
+<span class="ok">drwxr-xr-x</span>  harsh  staff   experience/
+<span class="ok">drwxr-xr-x</span>  harsh  staff   projects/
+<span class="ok">drwxr-xr-x</span>  harsh  staff   education/
+<span class="ok">drwxr-xr-x</span>  harsh  staff   contact/`,
+
+  whoami: () => { goTo('home'); return `<span class="ok">harsh</span> — Full Stack Developer &amp; EEE Engineer @ NIE Mysuru`; },
+
+  'cat resume': () =>
+`<span class="info">──────────────────── resume.txt ─────────────────────</span>
+<span class="info">Name    :</span>  Harsh Patel
+<span class="info">Role    :</span>  Full Stack Developer + B.E. EEE Student
+<span class="info">College :</span>  The National Institute Of Engineering (NIE), Mysuru
+<span class="info">SGPA    :</span>  8.0 / 10
+<span class="info">Email   :</span>  harshpatel97762@gmail.com
+<span class="info">Phone   :</span>  +91 6265854817
+<span class="info">GitHub  :</span>  harshpatel976
+<span class="info">Stack   :</span>  React · Django · Node.js · Express.js · MongoDB · Python
+<span class="info">Tools   :</span>  Git · Docker · Postman · VS Code
+<span class="info">Status  :</span>  <span class="ok">● Open to Opportunities</span>
+<span class="info">─────────────────────────────────────────────────────</span>`,
+
+  date: () => `<span class="ok">${new Date().toString()}</span>`,
+
+  neofetch: () =>
+`<span style="color:var(--green)">        #####        </span>   <span style="color:var(--cyan)">harsh</span><span style="color:var(--gray)">@</span><span style="color:var(--cyan)">portfolio</span>
+<span style="color:var(--green)">       #######       </span>   ──────────────────────────────
+<span style="color:var(--green)">       ##O#O##       </span>   <span style="color:var(--blue)">OS     :</span> portfolio-os 6.6.0
+<span style="color:var(--green)">       #######       </span>   <span style="color:var(--blue)">Shell  :</span> bash 5.2.0
+<span style="color:var(--green)">     ###########     </span>   <span style="color:var(--blue)">Stack  :</span> React · Django · Node.js
+<span style="color:var(--green)">    #############    </span>   <span style="color:var(--blue)">DB     :</span> MongoDB
+<span style="color:var(--green)">   ###############   </span>   <span style="color:var(--blue)">Editor :</span> VS Code
+<span style="color:var(--green)">   ####  #  ####    </span>   <span style="color:var(--blue)">Degree :</span> B.E. EEE @ NIE Mysuru
+<span style="color:var(--green)">   ###   #   ###    </span>   <span style="color:var(--blue)">SGPA   :</span> 8.0 / 10
+<span style="color:var(--green)">   ###########      </span>   <span style="color:var(--blue)">Status :</span> <span style="color:var(--green)">● Open to work</span>`,
+
+  clear: () => { outputEl.innerHTML = ''; return null; },
+};
+
+function goTo(id) {
+  const tabs = document.querySelectorAll('.nav-tab');
+  const idx  = tabMap[id];
+  if (idx !== undefined) switchTab(id, tabs[idx]);
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+inputEl.addEventListener('keydown', e => {
+  if      (e.key === 'Enter')                    { playClick('enter'); handleCommand(); }
+  else if (e.key === 'Backspace'||e.key==='Delete') playClick('backspace');
+  else if (e.key === ' ')                           playClick('space');
+  else if (e.key.length === 1)                      playClick('key');
+});
+
+function handleCommand() {
+  const raw   = inputEl.value.trim();
+  inputEl.value = '';
+  if (!raw) return;
+  const lower = raw.toLowerCase();
+  let result  = '';
+
+  if (lower.startsWith('echo ')) {
+    result = `<span class="ok">${escHtml(raw.slice(5))}</span>`;
+  } else if (lower.startsWith('cd ')) {
+    const target = lower.slice(3).replace(/\//g,'').trim();
+    if (Object.prototype.hasOwnProperty.call(tabMap, target)) {
+      goTo(target);
+      result = `<span class="ok">→ navigated to /${target}</span>`;
+    } else {
+      result = `<span class="err">bash: cd: ${escHtml(target)}: No such directory</span>  <span class="warn"># try: ls</span>`;
+    }
+  } else if (commands[lower]) {
+    const r = commands[lower]();
+    if (r === null) return;
+    result = r;
+  } else {
+    result = `<span class="err">bash: ${escHtml(raw)}: command not found</span>  <span class="warn"># type 'help'</span>`;
+  }
+
+  const block = document.createElement('div');
+  block.innerHTML =
+    `<div style="color:var(--gray-dim);font-size:11px;margin-bottom:3px">` +
+    `<span style="color:var(--green)">harsh@portfolio</span>` +
+    `<span style="color:var(--gray)">:~$</span> ${escHtml(raw)}</div>` +
+    `<div>${result}</div>`;
+  outputEl.appendChild(block);
+  block.scrollIntoView({ behavior:'smooth', block:'end' });
+}
+
+document.querySelector('.terminal-body').addEventListener('click', () => inputEl.focus());
+</script>
+</body>
+</html>
